@@ -1,17 +1,19 @@
-name: Update Mizan Stocks
+name: Update Mizan Data
 
 on:
   schedule:
-    - cron: '0 * * * *' # تحديث كل ساعة
+    - cron: '0 * * * *' # هيشتغل كل ساعة
   workflow_dispatch: # زرار التشغيل اليدوي
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    # السطرين اللي جايين هما الحل النهائي للتحذير
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-      
+      # هنا بنربط الـ Secrets اللي عملناها بالسكريبتات
+      APP_SCRIPT_URL: ${{ secrets.APP_SCRIPT_URL }}
+      NEWS_SCRIPT_URL: ${{ secrets.APP_SCRIPT_URL }} # لو الأخبار في نفس الشيت استخدم نفس الرابط
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,5 +27,8 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Run Scraper
+      - name: Update Stocks
         run: python scraper.py
+
+      - name: Update News
+        run: python news_scraper.py
