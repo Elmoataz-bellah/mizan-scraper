@@ -8,14 +8,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # السطرين اللي جايين هما الحل النهائي للتحذير
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+      
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # 👈 تم التحديث من v3 لـ v4
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5 # 👈 تم التحديث من v4 لـ v5
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # 👈 يفضل استخدام نسخة حديثة برضه
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
