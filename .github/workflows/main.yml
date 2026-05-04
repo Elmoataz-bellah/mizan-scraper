@@ -2,20 +2,20 @@ name: Update Mizan Stocks
 
 on:
   schedule:
-    - cron: '0 * * * *' # هيشتغل أوتوماتيك كل ساعة
-  workflow_dispatch: # زرار عشان تشغله يدوي في أي وقت
+    - cron: '0 * * * *' # تحديث كل ساعة
+  workflow_dispatch: # زرار التشغيل اليدوي
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # 👈 تم التحديث من v3 لـ v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 # 👈 تم التحديث من v4 لـ v5
         with:
-          python-version: '3.9'
+          python-version: '3.11' # 👈 يفضل استخدام نسخة حديثة برضه
 
       - name: Install dependencies
         run: |
