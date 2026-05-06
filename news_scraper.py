@@ -2,15 +2,14 @@ import requests
 from bs4 import BeautifulSoup
 import os
 
-# روابط مباشر مصر
+# روابط موقع اقتصاد مصر - تم تحديث الأقسام لتناسب الموقع
 CATEGORIES = {
-    "اقتصاد": "https://www.mubasher.info/markets/EGX/news",
-    "عملات": "https://www.mubasher.info/markets/currencies/news",
-    "ذهب": "https://www.mubasher.info/markets/commodities/news",
-    "طاقة": "https://www.mubasher.info/markets/commodities/news"
+    "اقتصاد": "https://eqtisadmisr.com/category/%d8%a3%d8%ae%d8%a8%d8%a7%d8%b1-%d8%a7%d9%84%d8%a7%d9%82%d8%aa%d8%b5%d8%a7%d8%af/",
+    "عملات": "https://eqtisadmisr.com/category/%d8%a8%d9%86%d9%88%d9%83-%d9%88%d8%b9%d9%85%d9%84%d8%a7%d8%aa/",
+    "ذهب": "https://eqtisadmisr.com/category/%d8%a3%d8%b3%d8%b9%d8%a7%d8%b1-%d8%a7%d9%84%d8%b0%d9%87%d8%a8/",
+    "طاقة": "https://eqtisadmisr.com/category/%d8%b7%d8%a7%d9%82%d8%a9-%d9%88%d8%aa%d8%b9%d8%af%d9%8a%d9%86/"
 }
 
-# سحب الرابط من Secrets جيت هاب
 NEWS_SCRIPT_URL = os.getenv("NEWS_SCRIPT_URL")
 
 def scrape_news():
@@ -21,60 +20,63 @@ def scrape_news():
     
     for cat_name, url in CATEGORIES.items():
         try:
-            print(f"📡 جاري فحص قسم: {cat_name}...")
+            print(f"📡 فحص قسم {cat_name} في اقتصاد مصر...")
             res = requests.get(url, headers=headers, timeout=20)
+            res.encoding = 'utf-8'
             soup = BeautifulSoup(res.content, 'html.parser')
             
-            # محاولة البحث عن المقالات بأكثر من طريقة (الـ Selector ده أدق لموقع مباشر)
-            articles = soup.select('a.mi-article-list-item__title') or \
-                       soup.select('.mi-article-list-item') or \
-                       soup.find_all('a', href=True)
+            # المقالات في هذا الموقع غالباً ما تكون داخل عنصر article أو div بـ class محدد
+            articles = soup.find_all('article') or soup.select('.post-item')
             
             count = 0
             for art in articles:
-                if count >= 5: break # نكتفي بـ 5 أخبار لكل قسم
+                if count >= 3: break
                 
-                title = art.text.strip()
-                # التأكد إن النص مش فاضي وإنه خبر فعلاً (طويل كفاية)
-                if not title or len(title) < 10: continue 
+                title_tag = art.find('h2') or art.find('h3') or art.find('a')
+                if not title_tag: continue
                 
-                link = art['href'] if art.has_attr('href') else ""
-                if link and not link.startswith('http'):
-                    link = "https://www.mubasher.info" + link
-
-                # سحب الصورة لو موجودة
-                img_tag = art.find_parent().find('img') if art.find_parent() else None
-                img = img_tag.get('src') or img_tag.get('data-src') if img_tag else "https://via.placeholder.com/150"
+                title = title_tag.text.strip()
+                if len(title) < 10: continue
+                
+                link_tag = art.find('a', href=True)
+                link = link_tag['href'] if link_tag else ""
+                
+                # سحب الصورة (غالباً تكون في وسام img داخل الـ article)
+                img_tag = art.find('img')
+                img = ""
+                if img_tag:
+                    img = img_tag.get('src') or img_tag.get('data-src') or img_tag.get('srcset', '').split(' ')[0]
+                
+                if not img or not img.startswith('http'):
+                    img = "https://via.placeholder.com/500x300?text=Eqtisad+Misr"
 
                 all_news.append({
                     "category": cat_name,
                     "title": title,
-                    "description": "اضغط للمزيد من التفاصيل حول: " + title,
+                    "description": "اقتصاد مصر: " + title,
                     "image": img,
                     "time": "منذ قليل"
                 })
                 count += 1
                 
         except Exception as e:
-            print(f"❌ خطأ في القسم {cat_name}: {e}")
-            continue
+            print(f"❌ خطأ في {cat_name}: {e}")
             
     return all_news
 
-# التنفيذ
-print("🚀 بدأ سكريبت الأخبار...")
+# التنفيذ والإرسال
+print("🚀 بدأ سكريبت اقتصاد مصر...")
 news_data = scrape_news()
 
 if news_data:
-    print(f"✅ تم سحب {len(news_data)} خبر بنجاح!")
+    print(f"✅ نجاح! تم سحب {len(news_data)} خبر.")
     if NEWS_SCRIPT_URL:
         try:
-            print(f"📤 جاري إرسال البيانات إلى Google Sheets...")
             res = requests.post(NEWS_SCRIPT_URL, json={"type": "update_news", "data": news_data})
-            print(f"🚀 رد جوجل النهائي: {res.text}")
+            print(f"🚀 رد جوجل: {res.text}")
         except Exception as e:
-            print(f"❌ خطأ في الإرسال: {e}")
+            print(f"❌ فشل الإرسال: {e}")
     else:
-        print("⚠️ تحذير: NEWS_SCRIPT_URL غير معرف في Secrets جيت هاب.")
+        print("⚠️ تحذير: NEWS_SCRIPT_URL غير معرف")
 else:
-    print("❌ فشل السكريبت في العثور على أي أخبار، تأكد من الروابط.")
+    print("❌ فشل السكريبت في العثور على أخبار.")
