@@ -1,14 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
 import os
-import time
 
-# روابط بوابة الأهرام (أقسام الاقتصاد)
+# روابط RSS Feed (مخصصة للتطبيقات ولا تعطي 403)
 CATEGORIES = {
-    "اقتصاد": "https://gate.ahram.org.eg/Category/1/2/المال-والأعمال.aspx",
-    "ذهب": "https://gate.ahram.org.eg/Search/ذهب.aspx",
-    "عملات": "https://gate.ahram.org.eg/Search/أسعار-العملات.aspx",
-    "طاقة": "https://gate.ahram.org.eg/Search/البترول.aspx"
+    "اقتصاد": "https://www.youm7.com/rss/Section/297", # قسم اقتصاد اليوم السابع
+    "ذهب": "https://www.youm7.com/rss/Section/97",     # أخبار عامة (سنفلترها بالعنوان)
+    "عملات": "https://www.youm7.com/rss/Section/297",  # نفس قسم الاقتصاد
+    "طاقة": "https://www.youm7.com/rss/Section/297"
 }
 
 NEWS_SCRIPT_URL = os.getenv("NEWS_SCRIPT_URL")
@@ -16,53 +15,54 @@ NEWS_SCRIPT_URL = os.getenv("NEWS_SCRIPT_URL")
 def scrape_news():
     all_news = []
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0'
     }
     
     for cat_name, url in CATEGORIES.items():
         try:
-            print(f"📡 فحص بوابة الأهرام - قسم: {cat_name}...")
+            print(f"📡 سحب RSS لقسم: {cat_name}...")
             res = requests.get(url, headers=headers, timeout=20)
-            res.encoding = 'utf-8' # لضمان قراءة اللغة العربية صح
             
             if res.status_code != 200:
-                print(f"⚠️ فشل الوصول لـ {cat_name}: {res.status_code}")
+                print(f"⚠️ فشل RSS لـ {cat_name}: {res.status_code}")
                 continue
 
-            soup = BeautifulSoup(res.content, 'html.parser')
-            
-            # في بوابة الأهرام، الخبر غالباً بيكون داخل div كلاس "entry-item" أو "col-md-4"
-            articles = soup.find_all('div', class_='col-md-4') or soup.find_all('div', class_='news-item')
+            # تحليل الـ XML الخاص بالـ RSS
+            soup = BeautifulSoup(res.content, 'xml')
+            items = soup.find_all('item')
             
             count = 0
-            for art in articles:
+            for item in items:
                 if count >= 3: break
                 
-                title_tag = art.find('a')
-                if not title_tag or not title_tag.text.strip(): continue
+                title = item.title.text.strip()
+                # فلترة بسيطة للتأكد أن الخبر مناسب للقسم (اختياري)
+                if cat_name == "ذهب" and "ذهب" not in title: continue
+                if cat_name == "عملات" and ("دولار" not in title and "جنيه" not in title): continue
+
+                link = item.link.text.strip()
+                description = item.description.text.strip() if item.description else ""
                 
-                title = title_tag.text.strip()
-                if len(title) < 15: continue # تخطي العناوين القصيرة جداً
-                
-                # جلب الصورة
-                img_tag = art.find('img')
+                # استخراج الصورة من الـ RSS (غالباً في وسام enclosure أو description)
                 img = ""
-                if img_tag:
-                    img = img_tag.get('src') or img_tag.get('data-src')
+                enclosure = item.find('enclosure')
+                if enclosure:
+                    img = enclosure.get('url')
                 
-                # تصحيح مسار الصورة لو كان مسار نسبي
-                if img and img.startswith('/'):
-                    img = "https://gate.ahram.org.eg" + img
+                if not img: # محاولة البحث في الوصف
+                    desc_soup = BeautifulSoup(description, 'html.parser')
+                    img_tag = desc_soup.find('img')
+                    if img_tag: img = img_tag.get('src')
 
                 all_news.append({
                     "category": cat_name,
                     "title": title,
-                    "description": "بوابة الأهرام: " + title,
-                    "image": img if img else "https://gate.ahram.org.eg/Content/Upload/Slider/2023/1/25/0_2023125152345.jpg",
-                    "time": "آخر تحديث"
+                    "description": "اليوم السابع: " + title,
+                    "image": img if img else "https://www.youm7.com/images/youm7-logo.png",
+                    "time": "منذ قليل"
                 })
                 count += 1
-            print(f"✅ تم العثور على {count} أخبار في {cat_name}")
+            print(f"✅ تم سحب {count} خبر من RSS {cat_name}")
                 
         except Exception as e:
             print(f"❌ خطأ في {cat_name}: {e}")
@@ -70,7 +70,7 @@ def scrape_news():
     return all_news
 
 # التنفيذ والإرسال
-print("🚀 بدأ سكريبت بوابة الأهرام...")
+print("🚀 بدأ سكريبت الـ RSS Feed...")
 news_data = scrape_news()
 
 if news_data:
@@ -82,4 +82,4 @@ if news_data:
         except Exception as e:
             print(f"❌ فشل الإرسال لجوجل: {e}")
 else:
-    print("❌ فشل السكريبت بالكامل.")
+    print("❌ فشل السكريبت: لم يتم العثور على بيانات RSS.")
