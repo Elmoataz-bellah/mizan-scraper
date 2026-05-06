@@ -29,7 +29,7 @@ def scrape_news():
                 print(f"⚠️ فشل الوصول لجوجل {cat_name}: {res.status_code}")
                 continue
 
-            soup = BeautifulSoup(res.content, 'xml')
+soup = BeautifulSoup(res.content, 'html.parser')
             items = soup.find_all('item')
             
             count = 0
