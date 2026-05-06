@@ -1,13 +1,14 @@
 import requests
 from bs4 import BeautifulSoup
 import os
+import urllib.parse
 
-# روابط RSS مصراوي - شغالة ومستقرة جداً
+# روابط أخبار جوجل للأقسام الاقتصادية في مصر (مضمونة 100%)
 CATEGORIES = {
-    "اقتصاد": "https://www.masrawy.com/rss/economy",
-    "ذهب": "https://www.masrawy.com/rss/listing?id=126", # قسم الذهب والأسعار
-    "عملات": "https://www.masrawy.com/rss/listing?id=127", # أسعار العملات
-    "طاقة": "https://www.masrawy.com/rss/listing?id=518"  # طاقة وبترول
+    "اقتصاد": "https://news.google.com/rss/search?q=اقتصاد+مصر&hl=ar&gl=EG&ceid=EG:ar",
+    "ذهب": "https://news.google.com/rss/search?q=أسعار+الذهب+في+مصر&hl=ar&gl=EG&ceid=EG:ar",
+    "عملات": "https://news.google.com/rss/search?q=أسعار+الدولار+والعملات+في+مصر&hl=ar&gl=EG&ceid=EG:ar",
+    "طاقة": "https://news.google.com/rss/search?q=أسعار+البنزين+والطاقة+مصر&hl=ar&gl=EG&ceid=EG:ar"
 }
 
 NEWS_SCRIPT_URL = os.getenv("NEWS_SCRIPT_URL")
@@ -20,55 +21,46 @@ def scrape_news():
     
     for cat_name, url in CATEGORIES.items():
         try:
-            print(f"📡 محاولة سحب RSS مصراوي لقسم: {cat_name}...")
-            res = requests.get(url, headers=headers, timeout=25)
+            print(f"📡 سحب من أخبار جوجل لقسم: {cat_name}...")
+            # تحويل الرابط لصيغة تفهمها أخبار جوجل
+            res = requests.get(url, headers=headers, timeout=30)
             
             if res.status_code != 200:
-                print(f"⚠️ فشل الوصول لرابط {cat_name}: {res.status_code}")
+                print(f"⚠️ فشل الوصول لجوجل {cat_name}: {res.status_code}")
                 continue
 
-            # تحليل الـ XML
             soup = BeautifulSoup(res.content, 'xml')
             items = soup.find_all('item')
             
             count = 0
             for item in items:
-                if count >= 4: break # هنسحب 4 أخبار لكل قسم
+                if count >= 5: break # سحب 5 أخبار لكل قسم
                 
                 title = item.title.text.strip()
+                # جوجل بيحط اسم المصدر في نهاية العنوان، هنشيله عشان الشكل
+                clean_title = title.split(' - ')[0]
+                source = title.split(' - ')[-1] if ' - ' in title else "مصدر إخباري"
+                
                 link = item.link.text.strip()
-                
-                # استخراج الصورة (في مصراوي بتكون في tag اسمه media:content أو enclosure)
-                img = ""
-                media_content = item.find('media:content')
-                if media_content:
-                    img = media_content.get('url')
-                elif item.find('enclosure'):
-                    img = item.find('enclosure').get('url')
-                
-                # لو مفيش صورة، بنحاول نجيبها من الـ Description
-                if not img and item.description:
-                    desc_soup = BeautifulSoup(item.description.text, 'html.parser')
-                    img_tag = desc_soup.find('img')
-                    if img_tag: img = img_tag.get('src')
+                pub_date = item.pubDate.text.strip() if item.pubDate else "اليوم"
 
                 all_news.append({
                     "category": cat_name,
-                    "title": title,
-                    "description": "مصراوي: " + title,
-                    "image": img if img else "https://media.masrawy.com/Images/masrawy-logo.png",
-                    "time": "منذ قليل"
+                    "title": clean_title,
+                    "description": f"المصدر: {source}",
+                    "image": "https://www.gstatic.com/images/branding/googlelogo/2x/googlelogo_color_92x30dp.png", # صورة افتراضية لأن جوجل RSS لا يرسل صوراً مباشرة
+                    "time": pub_date
                 })
                 count += 1
-            print(f"✅ تم سحب {count} أخبار من قسم {cat_name}")
+            print(f"✅ تم سحب {count} أخبار من جوجل لـ {cat_name}")
                 
         except Exception as e:
             print(f"❌ خطأ في {cat_name}: {e}")
             
     return all_news
 
-# التنفيذ والإرسال لجوجل شيت
-print("🚀 بدأ سكريبت مصراوي RSS...")
+# الإرسال
+print("🚀 بدأ سكريبت Google News RSS...")
 news_data = scrape_news()
 
 if news_data:
@@ -76,8 +68,8 @@ if news_data:
     if NEWS_SCRIPT_URL:
         try:
             res = requests.post(NEWS_SCRIPT_URL, json={"type": "update_news", "data": news_data})
-            print(f"🚀 رد جوجل: {res.text}")
+            print(f"🚀 رد جوجل شيت: {res.text}")
         except Exception as e:
-            print(f"❌ فشل الإرسال لجوجل: {e}")
+            print(f"❌ فشل الإرسال: {e}")
 else:
-    print("❌ فشل السكريبت: الروابط لم ترجع أي بيانات.")
+    print("❌ فشل السكريبت: حتى جوجل لم يرجع بيانات!")
